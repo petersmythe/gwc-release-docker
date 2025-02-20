@@ -72,10 +72,9 @@ Also make sure xsddoc in in the path.
 Releasing a stable/maintenance release
 --------------------------------------
 
-First, manually check the GitHub commit history https://github.com/GeoWebCache/geowebcache/commits/1.26.x/ for the Improvements or Fixes to go into the Release notes.
+First, manually check the GitHub commit history e.g. https://github.com/GeoWebCache/geowebcache/commits/1.26.x/ for the Improvements or Fixes to go into the Release notes.
 
-
-Assuming one wants to release a GWC 1.9.3, which depends on GeoToools 15.4, then run the following commands:
+Assuming one wants to release a GWC 1.9.3, which depends on GeoTools 15.4, then run the following commands:
 
 ````
 ruby release.rb --branch 1.9.x --long-version 1.9.3 --short-version 1.9 --gt-version 15.4 --type stable reset update 
