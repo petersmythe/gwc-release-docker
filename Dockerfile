@@ -6,7 +6,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV EDITOR=vim
 
 # Install dependencies and tools
-RUN apt-get update && \
+# ruby:2.7 is based on Debian 11 (bullseye), which is EOL: its repos now live on archive.debian.org
+RUN sed -i -e 's|deb.debian.org/debian-security|archive.debian.org/debian-security|g' \
+           -e 's|security.debian.org/debian-security|archive.debian.org/debian-security|g' \
+           -e 's|deb.debian.org/debian|archive.debian.org/debian|g' \
+           -e '/bullseye-updates/d' /etc/apt/sources.list && \
+    echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99archive && \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
     git \
     wget \
