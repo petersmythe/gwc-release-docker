@@ -6,7 +6,7 @@
 # Examples:
 #
 # release.rb --branch 1.8.x reset # Reset the local 1.8.x branch to match origin/1.8.x
-# release.rb --new-branch 1.8.x --old-branch master --long-version 1.9-SNAPSHOT --short-version 1.9 --gt-version 15-SNAPSHOT branch # Create a 1.8.x branch off of master and update the build config on master to version 1.9.  Commits but does not push the changes.  Also allows the user to edit the release notes and then commits that seperately.
+# release.rb --new-branch 1.8.x --old-branch master --long-version 1.9 --short-version 1.9 --gt-version 15 branch # Create a 1.8.x branch off of master and update the build config on master to version 1.9.  Commits but does not push the changes.  Also allows the user to edit the release notes and then commits that seperately.
 # release.rb --branch 1.8.x --long-version 1.8-RC1 --short-version 1.8 --gt-version 14-RC1 --type candidate update # update build config to release Release Candidate 1 of the 1.8 series
 # release.rb --branch master --long-version 1.8-beta --type beta # Release beta for the 1.8 series
 # release.rb --branch 1.8.x --long-version 1.8.0 --short-version 1.8 --gt-version 14.0 --type stable reset update build # sync to origin/1.8.x, update for a atable 1.8.0 release, then build it
@@ -81,9 +81,17 @@ def process_file(path, start=nil, stop=nil, backup=nil)
 end
 
 def update_poms(gwc_version, gt_version)
+  gwc_major = gwc_version.scan(/\d*/)[0]
+  gwc_minor = gwc_version.scan(/\d*/)[2]
+  gwc_minor_previous = (gwc_minor.to_i - 1).to_s
+  
+  puts "Update from: #{gwc_major}.#{gwc_minor_previous}-SNAPSHOT or #{gwc_major}.#{gwc_minor}-SNAPSHOT to #{gwc_version}"
+  
   Dir.glob (File.join($dir, "geowebcache","**","pom.xml")) do |path| 
     process_file path do |line|
-      line.sub! /<version>[^<]*<\/version><!-- GWC VERSION -->/, "<version>#{gwc_version}</version><!-- GWC VERSION -->"
+      # line.sub! "<version>1.18-SNAPSHOT</version>", "<version>#{gwc_version}</version>"
+      line.sub! "<version>#{gwc_major}.#{gwc_minor_previous}-SNAPSHOT</version>", "<version>#{gwc_version}</version>"
+      line.sub! "<version>#{gwc_major}.#{gwc_minor}-SNAPSHOT</version>", "<version>#{gwc_version}</version>"
       line.sub! /<gt.version>[^<]*<\/gt.version>/, "<gt.version>#{gt_version}</gt.version>"
       line.sub! /<finalName>geowebcache-[^<]*<\/finalName>/, "<finalName>geowebcache-#{gwc_version}</finalName>"
       line
@@ -317,19 +325,23 @@ end
 FRS_HOST = "frs.sourceforge.net"
 FRS_SSH_PORT = 22
 
-def deploy_release(long_version, type=:stable, sf_user, sf_password)
+def deploy_release(long_version, type=:stable)
   $log.info "Deploying artifacts"
 
   $log.info "Deploying to maven repository"
   maven "deploy", "-DskipTests" # Tests ran while building, don't run them again
   
-  $log.info "Deploying artifacts to Sourceforge"
+  $log.info "Done deploying artifacts" 
+end
+
+def upload_release(long_version, type=:stable, sf_user, sf_password)
+    $log.info "Uploading artifacts to Sourceforge"
 
   Net::SSH.start(FRS_HOST, sf_user, {:port => FRS_SSH_PORT, :logger => $ssh_log, :password => sf_password}) do |ssh|
     ssh.scp.upload! $artifact_dir, "/home/frs/project/geowebcache/geowebcache/#{long_version}", {:recursive => true}
   end
 
-  $log.info "Done deploying artifacts" 
+  $log.info "Done uploading artifacts" 
 end
 
 WEB_HOST = "wedge.boundlessgeo.com"
@@ -465,7 +477,8 @@ OptionParser.new do |opts|
   opts.separator "        branch                       Create a new branch and update the version numbers on the old one.  Pushes updates to GitHub."
   opts.separator "        update                       Update the versions for release."  
   opts.separator "        build                        Build the release artifacts."
-  opts.separator "        deploy                       Upload to Maven and SourceForge"
+  opts.separator "        deploy                       Deploy to Maven"
+  opts.separator "        upload                       Upload to SourceForge"
   opts.separator "        tag                          Tag the release and revert to SNAPSHOT versions.  Pushes updates to GitHub."
   opts.separator "        web                          Update the geowebcache.org website"
   opts.separator ""
@@ -643,11 +656,17 @@ ARGV.each do |command|
     build_release(*params)
 
   when "deploy" # Deploy artifacts
-    require_options($options, [:long_version, :branch, :sf_user])
-    params =                  [:long_version, :branch, :sf_user, :sf_password].map{|key| $options[key]}
+    require_options($options, [:long_version, :branch])
+    params =                  [:long_version, :branch].map{|key| $options[key]}
     puts "deploy_release(#{params.map{|param| param.inspect}.join","})"
     deploy_release(*params)
 
+  when "upload" # Deploy artifacts
+    require_options($options, [:long_version, :branch, :sf_user])
+    params =                  [:long_version, :branch, :sf_user, :sf_password].map{|key| $options[key]}
+    puts "upload_release(#{params.map{|param| param.inspect}.join","})"
+    upload_release(*params)
+    
   when "tag" # Tag the release, revert changes, and push to repository
     require_options($options, [:long_version, :branch, :upstream_remote, :release_commit])
     params =                  [:long_version, :branch, :upstream_remote, :release_commit].map{|key| $options[key]}
